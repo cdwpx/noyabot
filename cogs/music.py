@@ -7,17 +7,29 @@ import lavalink
 from discord import slash_command, Option
 from discord.ext import commands
 
+import utils.botconfig as cfg
+
 RURL = re.compile(r'https?://(?:www\.)?.+')
 
 
 def create_embed(track, position):
     pos = time.strftime('%H:%M:%S', time.gmtime(int(position / 1000)))
     dur = time.strftime('%H:%M:%S', time.gmtime(int(track.duration / 1000)))
-    embed = discord.Embed(title=f"{track.title}", description=f"*{track.author}*", color=discord.Color.gold())
+    embed = discord.Embed(title=f"{track.title}", description=f"*{track.author}*", color=cfg.embed_color)
     embed.add_field(name="__Position__", value=f"{pos}/{dur}", inline=True)
     embed.add_field(name="__Video URL__", value=f"[Click here!]({track.uri})", inline=False)
     embed.set_footer(text=f"Requested by {track.requester}")
     return embed
+
+
+def confirmation(message):
+    embed = discord.Embed(title=cfg.success + f" {message}", color=cfg.embed_color)
+    return embed
+
+
+async def cleanup(player):
+    player.queue.clear()
+    await player.stop()
 
 
 class Player(discord.VoiceClient):
@@ -68,12 +80,12 @@ class SongSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user != self.author:
-            return await interaction.response.send_message("<:n_no:987886730625560626> Invalid user!", ephemeral=True)
+            return await interaction.response.send_message(f"{cfg.error} Invalid user!", ephemeral=True)
         selection = self.values[0]
         song = self.keys[f"{selection}"]
         info = song['info']
-        await interaction.response.edit_message(content=f"```fix\nAdding {info['title']} to the player\n```", view=None)
-        player = self.client.lavalink.player_manager.create(interaction.guild.id)
+        await interaction.response.edit_message(embed=confirmation(f"Adding {info['title']} to the player"), view=None)
+        player = self.client.lavalink.player_manager.get(interaction.guild.id)
         player.add(requester=self.author.id, track=song)
         if not player.is_playing:
             await player.play()
@@ -103,18 +115,13 @@ class Buttons(discord.ui.View):
         return player
 
     @staticmethod
-    async def cleanup(player):
-        player.queue.clear()
-        await player.stop()
-
-    @staticmethod
     def compilequeue(queue):
         out = []
         for song in queue:
             out.append(song.title)
         return out
 
-    @discord.ui.button(emoji="<:n_pause:987879632441311285>", label="Play/Pause", style=discord.ButtonStyle.gray, row=1)
+    @discord.ui.button(emoji=cfg.pause, label="Play/Pause", style=discord.ButtonStyle.gray, row=1)
     async def button_pauseplay(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         embed = create_embed(player.current, player.position)
@@ -127,7 +134,7 @@ class Buttons(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             await interaction.channel.send(f"{interaction.user.display_name} resumed the music")
 
-    @discord.ui.button(emoji="<:n_skip:987879627680796754>", label="Skip", style=discord.ButtonStyle.gray, row=1)
+    @discord.ui.button(emoji=cfg.skip, label="Skip", style=discord.ButtonStyle.gray, row=1)
     async def button_forward(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         embed = create_embed(player.current, player.position)
@@ -135,16 +142,16 @@ class Buttons(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
         await interaction.channel.send(f"{interaction.user.display_name} skipped the song")
 
-    @discord.ui.button(emoji="<:n_stop:987879633913536572>", label="Stop", style=discord.ButtonStyle.gray, row=1)
+    @discord.ui.button(emoji=cfg.stop, label="Stop", style=discord.ButtonStyle.gray, row=1)
     async def button_stop(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         embed = discord.Embed(title=f"Stopping player...", color=discord.Color.red())
         await interaction.response.edit_message(embed=embed, view=None)
         await interaction.channel.send(f"{interaction.user.display_name} stopped the player")
-        await self.cleanup(player)
         await interaction.guild.voice_client.disconnect(force=True)
+        await cleanup(player)
 
-    @discord.ui.button(emoji="<:n_shuffle:987879631409512458>", label="Shuffle", style=discord.ButtonStyle.gray, row=2)
+    @discord.ui.button(emoji=cfg.shuffle, label="Shuffle", style=discord.ButtonStyle.gray, row=2)
     async def button_shuffle(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         embed = create_embed(player.current, player.position)
@@ -156,7 +163,7 @@ class Buttons(discord.ui.View):
             player.set_shuffle(shuffle=False)
             await interaction.channel.send(f"{interaction.user.display_name} no longer shuffling the queue!")
 
-    @discord.ui.button(emoji="<:n_repeat:987879630000259162>", label="Repeat", style=discord.ButtonStyle.gray, row=2)
+    @discord.ui.button(emoji=cfg.repeat, label="Repeat", style=discord.ButtonStyle.gray, row=2)
     async def button_loop(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         embed = create_embed(player.current, player.position)
@@ -168,7 +175,7 @@ class Buttons(discord.ui.View):
             player.set_repeat(repeat=False)
             await interaction.channel.send(f"{interaction.user.display_name} no longer looping the queue!")
 
-    @discord.ui.button(emoji="<:n_list:987879635029217301>", label="Queue", style=discord.ButtonStyle.gray, row=2)
+    @discord.ui.button(emoji=cfg.queue, label="Queue", style=discord.ButtonStyle.gray, row=2)
     async def button_queue(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         queue = self.compilequeue(player.queue)
@@ -177,7 +184,7 @@ class Buttons(discord.ui.View):
         for song in queue[:10]:
             songlist.append(f"**{count}:** `{song}`")
             count += 1
-        embed = discord.Embed(title=f"Next 10 Songs", description=f"\n".join(songlist), color=discord.Color.gold())
+        embed = discord.Embed(title=f"Next 10 Songs", description=f"\n".join(songlist), color=cfg.embed_color)
         await interaction.response.edit_message(embed=embed, view=Queue(self.client))
 
 
@@ -191,7 +198,7 @@ class Music(commands.Cog):
     async def connect_nodes(self):
         await self.client.wait_until_ready()
         lavaclient = lavalink.Client(self.client.user.id)
-        lavaclient.add_node('<ip>', '<port>', '<password>', '<region>', 'default')
+        lavaclient.add_node(cfg.l_host, cfg.l_port, cfg.l_password, cfg.l_region, cfg.l_name)
         lavalink.add_event_hook(self.track_hook)
         self.client.lavalink = lavaclient
 
@@ -208,12 +215,15 @@ class Music(commands.Cog):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState,
                                     after: discord.VoiceState):
-        if member.bot:
-            return
         voice = discord.utils.get(self.client.voice_clients, guild=member.guild)
+        player = self.client.lavalink.player_manager.get(member.guild.id)
         if not voice:
+            if player:
+                await cleanup(player)
             return
-        elif voice.channel != before.channel:
+        elif voice.channel != before.channel:  # ignore if the member joined a voice channel
+            return
+        elif member.bot:
             return
         if after.channel != before.channel:
             memberlist = []
@@ -222,10 +232,8 @@ class Music(commands.Cog):
                     continue
                 memberlist.append(m)
             if not memberlist:
-                player = self.client.lavalink.player_manager.get(member.guild.id)
                 if player.is_playing:
-                    player.queue.clear()
-                    await player.stop()
+                    await cleanup(player)
                 await voice.disconnect(force=True)
 
     @slash_command(description="Play some music")
@@ -234,7 +242,7 @@ class Music(commands.Cog):
         try:
             channel = ctx.author.voice.channel
         except AttributeError:
-            return await ctx.respond("<:n_no:987886730625560626> You need to be in a voice channel", ephemeral=True)
+            return await ctx.respond(f"{cfg.error} You need to be in a voice channel", ephemeral=True)
         player = self.client.lavalink.player_manager.create(ctx.guild.id)
         try:
             await channel.connect(cls=Player)
@@ -242,17 +250,30 @@ class Music(commands.Cog):
             await ctx.guild.voice_client.move_to(channel)
         if search:
             if len(search) > 256:
-                return await ctx.respond("<:n_no:987886730625560626> Search query has a maximum of 256 characters!",
-                                         ephemeral=True)
+                return await ctx.respond(f"{cfg.error} Search query has a maximum of 256 characters!", ephemeral=True)
             if not RURL.match(search):
                 search = f'ytsearch:{search}'
             results = await player.node.get_tracks(search)
             if not results or not results['tracks']:
-                return await ctx.respond("<:n_no:987886730625560626> Couldn't find any music!", ephemeral=True)
+                return await ctx.respond(f"{cfg.error} Couldn't find any music!", ephemeral=True)
+            if player.is_playing:
+                if len(player.queue) >= 250:
+                    return await ctx.respond(f"{cfg.error} The queue is full!", ephemeral=True)
+            if results['loadType'] == 'PLAYLIST_LOADED':
+                tracks = results['tracks']
+                total = len(player.queue)
+                count = 0
+                for track in tracks:
+                    if total + count < 250:
+                        player.add(requester=ctx.author.id, track=track)
+                        count += 1
+                await ctx.respond(embed=confirmation(f"Added {count} songs to the player"))
+                if not player.is_playing:
+                    await player.play()
             elif len(results['tracks']) == 1:
                 song = results['tracks'][0]
                 info = song['info']
-                await ctx.respond(f"```fix\nAdding {info['title']} to the player\n```")
+                await ctx.respond(confirmation(f"Adding {info['title']} to the player"))
                 player.add(requester=ctx.author.id, track=song)
                 if not player.is_playing:
                     await player.play()
@@ -262,7 +283,7 @@ class Music(commands.Cog):
                 await ctx.respond(view=view)
         else:
             if not player.is_playing:
-                return await ctx.respond("<:n_no:987886730625560626> No music playing!", ephemeral=True)
+                return await ctx.respond(f"{cfg.error} No music playing!", ephemeral=True)
             check = self.is_privileged(ctx, player.current)
             bview = Buttons(self.client) if check else None
             embed = create_embed(player.current, player.position)

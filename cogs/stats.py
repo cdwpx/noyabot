@@ -2,6 +2,8 @@ import discord
 from discord import slash_command, Option
 from discord.ext import commands
 
+import utils.botconfig as cfg
+
 
 def user_embed(user, guildcheck):
     bi = int(user.created_at.timestamp())
@@ -35,7 +37,7 @@ def guild_embed(guild):
             k = k + 's' if k != "Category" else "Categories"
             other.append(f"{n} {k}")
     desc = str(guild.description).strip()
-    embed = discord.Embed(title=f"Stats | {guild.name}", color=discord.Color.gold(), description=f"{desc}")
+    embed = discord.Embed(title=f"Stats | {guild.name}", color=cfg.embed_color, description=f"{desc}")
     embed.add_field(name="__Birthday__", value=f"<t:{bi}:D>\n(<t:{bi}:R>)", inline=True)
     embed.add_field(name="__Verification__", value=f"{str(guild.verification_level).capitalize()}", inline=True)
     embed.add_field(name="__Members__", value=f"{guild.member_count}", inline=True)
@@ -75,7 +77,7 @@ class Stats(commands.Cog):
         if ctx.guild:
             user = member or ctx.author
             if not ctx.guild.get_member(user.id):
-                return await ctx.respond(f"<:n_no:987886730625560626> I can't find this member!", ephemeral=True)
+                return await ctx.respond(f"{cfg.error} I can't find this member!", ephemeral=True)
             view = StatButtons(user=user)
             embed = user_embed(user, True)
         else:

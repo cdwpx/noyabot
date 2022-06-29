@@ -2,6 +2,8 @@ import discord
 from discord import slash_command, Option
 from discord.ext import commands
 
+import utils.botconfig as cfg
+
 freeoptions = [["YouTube", "Watch videos together!"], ["Betrayal.io", "Among Us Clone"],
                ["Fishington.io", "Epic fishing game"], ["Word Snack", "Make words from a few letters"],
                ["Sketch Heads", "Drawing game"]]
@@ -37,7 +39,7 @@ class AcSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user != self.author:
-            return await interaction.response.send_message("<:n_no:987886730625560626> Invalid user!", ephemeral=True)
+            return await interaction.response.send_message(f"{cfg.error} Invalid user!", ephemeral=True)
         selection = self.values[0]
         activityid = keys[selection]
         invite = await self.channel.create_activity_invite(activity=activityid, max_age=3600)
@@ -55,7 +57,7 @@ class Games(commands.Cog):
                        channel: Option(discord.VoiceChannel, description="Where do you want the invite?",
                                        required=True, default=None)):
         if not channel:
-            return await ctx.respond(f"<:n_no:987886730625560626> You must specify a channel!", ephemeral=True)
+            return await ctx.respond(f"{cfg.error} You must specify a channel!", ephemeral=True)
         prem = True if ctx.guild.premium_tier != 0 else False
         view = discord.ui.View()
         view.add_item(AcSelect(channel, ctx.author, prem))

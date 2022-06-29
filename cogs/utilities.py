@@ -1,7 +1,7 @@
 import operator
 import random
 import re
-import time
+import time as timey
 from functools import reduce
 from random import randint
 
@@ -10,12 +10,10 @@ from discord import slash_command, Option
 from discord.ext import commands
 from tinydb import TinyDB
 
-from utils.time import timey_whimy
+import utils.botconfig as cfg
 
 ops = {'+': operator.add, '-': operator.sub, '*': operator.mul, '/': operator.truediv}
 rtime = {'s': 1, 'm': 60, 'h': 3600, 'd': 86400, 'w': 604800, 'n': 2592000, 'y': 31536000}
-
-Time = time
 
 
 class Utilities(commands.Cog):
@@ -47,8 +45,8 @@ class Utilities(commands.Cog):
                     diceo = 1
                     valueo = e[0]
             except IndexError:
-                return await ctx.respond(
-                    "<:n_no:987886730625560626> Dice not in correct format! Use `n`, `dn`, or `ndn`", ephemeral=True)
+                return await ctx.respond(f"{cfg.error} Dice not in correct format! Use `n`, `dn`, or `ndn`",
+                                         ephemeral=True)
             dice = min(max(abs(diceo), 1), 999)
             value = min(max(abs(valueo), 1), 999999999)
             if dice != diceo or value != valueo:
@@ -70,16 +68,14 @@ class Utilities(commands.Cog):
         tot = cal[0]
         for c, o in zip(cal[1:], b):
             if not any(o in s for s in opslist):
-                return await ctx.respond(
-                    "<:n_no:987886730625560626> Can't use this operator, you need to use `+, -, *, or /`",
-                    ephemeral=True)
+                return await ctx.respond(f"{cfg.error} Can't use this operator, you need to use `+, -, *, or /`",
+                                         ephemeral=True)
             else:
                 try:
                     tot = ops[o](tot, int(c))
                 except ZeroDivisionError or OverflowError:
-                    return await ctx.respond(
-                        "<:n_no:987886730625560626> I had trouble calculating this roll! Try again, maybe?",
-                        ephemeral=True)
+                    return await ctx.respond(f"{cfg.error} I had trouble calculating this roll! Try again, maybe?",
+                                             ephemeral=True)
         final.append(f"**{round(tot, 2)}!**")
         if tot == cal[0] == val[0]:
             pass
@@ -102,11 +98,11 @@ class Utilities(commands.Cog):
         else:
             await ctx.respond(f"You rolled {msg}")
         if checkerror:
-            await ctx.respond("<:n_no:987886730625560626> One or more of your numbers was higher "
-                              "than 999d999999999, so it was automatically lowered", ephemeral=True)
+            await ctx.respond(f"{cfg.error} One or more of your numbers was higher than 999d999999999, "
+                              f"so it was automatically lowered", ephemeral=True)
 
     @slash_command(description="Set a reminder for later")
-    @commands.cooldown(3, 5, commands.BucketType.user)
+    @commands.cooldown(2, 8, commands.BucketType.user)
     async def remind(self, ctx,
                      time: Option(str, description="Examples: 5m, 5 minutes, 5m3s", required=False, default="5m"),
                      message: Option(str, description="What am I reminding you?", required=False),
@@ -127,19 +123,19 @@ class Utilities(commands.Cog):
                 calc = rtime[modifier]
                 tget = int(value) * calc
             except:
-                return await ctx.respond("<:n_no:987886730625560626> Woah, I don't recognize that time. I can do "
-                                         "'5 minutes', or '5 minutes 3 seconds', or '5m3s'", ephemeral=True)
+                return await ctx.respond(f"{cfg.error} Woah, I don't recognize that time. I can do '5 minutes', "
+                                         f"or '5 minutes 3 seconds', or '5m3s'", ephemeral=True)
             timein += tget
         timeout = min(max(abs(timein), 1), 315360000)
-        totime = timeout + int(Time.time())
+        totime = timeout + int(timey.time())
         data = {'time': totime, 'channel': ctx.channel.id, 'user': ctx.author.id, 'message': message}
         db = TinyDB('data/remind.json')
         db.insert(data)
         if message:
-            await ctx.respond(f"You got it, I'll remind you about `{message}` in {timey_whimy(timeout)}...",
+            await ctx.respond(f"{cfg.success} Sure thing, you'll be reminded for '{message}' <t:{totime}:R>",
                               ephemeral=hidden)
         else:
-            await ctx.respond(f"You got it, I'll remind you in {timey_whimy(timeout)}...", ephemeral=hidden)
+            await ctx.respond(f"{cfg.success} Sure thing, you'll be reminded <t:{totime}:R>", ephemeral=hidden)
 
     @slash_command(description="Mention a random person")
     @commands.cooldown(1, 10, commands.BucketType.user)
