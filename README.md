@@ -9,3 +9,6 @@ You can join the support server [here](https://discord.gg/2Jb5M9wwsN)
 - Lavalink (and lavalink.py)
 - tinydb
 - PyNaCl
+
+### Setup
+Global settings can be located within `utils/botconfig.py`
