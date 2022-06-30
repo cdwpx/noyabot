@@ -146,9 +146,11 @@ class Buttons(discord.ui.View):
     async def button_stop(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
         embed = discord.Embed(title=f"Stopping player...", color=discord.Color.red())
+        voice = interaction.guild.voice_client
         await interaction.response.edit_message(embed=embed, view=None)
         await interaction.channel.send(f"{interaction.user.display_name} stopped the player")
-        await interaction.guild.voice_client.disconnect(force=True)
+        if voice:
+            await voice.disconnect(force=True)
         await cleanup(player)
 
     @discord.ui.button(emoji=cfg.shuffle, label="Shuffle", style=discord.ButtonStyle.gray, row=2)

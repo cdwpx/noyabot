@@ -73,7 +73,7 @@ class Utilities(commands.Cog):
             else:
                 try:
                     tot = ops[o](tot, int(c))
-                except ZeroDivisionError or OverflowError:
+                except (ZeroDivisionError, OverflowError):
                     return await ctx.respond(f"{cfg.error} I had trouble calculating this roll! Try again, maybe?",
                                              ephemeral=True)
         final.append(f"**{round(tot, 2)}!**")
@@ -115,14 +115,14 @@ class Utilities(commands.Cog):
         timein = 0
         for x in b:
             if 'month' in x:
-                c.append('n')
+                c.append('n')  # use 'n' for months because minutes already uses 'm'
             else:
                 c.append(x[0])
         for value, modifier in zip(a, c):
             try:
                 calc = rtime[modifier]
                 tget = int(value) * calc
-            except:
+            except (ValueError, KeyError):
                 return await ctx.respond(f"{cfg.error} Woah, I don't recognize that time. I can do '5 minutes', "
                                          f"or '5 minutes 3 seconds', or '5m3s'", ephemeral=True)
             timein += tget
@@ -151,6 +151,8 @@ class Utilities(commands.Cog):
                     memberlist.append(member)
         else:
             memberlist = init_memberlist
+        if not memberlist:
+            return await ctx.respond(f"{cfg.error} Nobody to ping!", ephemeral=True)
         get_member = random.choice(memberlist)
         m = discord.AllowedMentions(users=[get_member])
         await ctx.respond(f"{get_member.mention}", allowed_mentions=m)

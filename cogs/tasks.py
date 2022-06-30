@@ -20,28 +20,22 @@ class Tasks(commands.Cog):
         self.remind_check.start()
         print('Ready!')
 
-    @commands.Cog.listener()
-    async def on_application_command_error(self, ctx, error):
-        if hasattr(ctx.command, 'on_error'):
-            return
-        cog = ctx.cog
-        if cog:
-            if cog._get_overridden_method(cog.cog_command_error) is not None:
-                return
-        error = getattr(error, 'original', error)
-
+    @commands.Cog.listener('on_application_command_error')
+    @commands.Cog.listener('on_error')
+    async def on_error(self, ctx, error):
+        error = error.original
         if isinstance(error, commands.CommandOnCooldown):
             num = round(error.retry_after) + int(time.time())
             await ctx.respond(f"{cfg.error} This command is on cooldown! Try again <t:{num}:R>", ephemeral=True)
         elif isinstance(error, discord.HTTPException):
-            ez = int(error.status)
-            if ez == 400:  # not always true
-                await ctx.respond(f"{cfg.error} This message is over 2,000 characters!", ephemeral=True)
-            elif ez == 403:
-                await ctx.respond(f"{cfg.error} Do I have enough permissions?", ephemeral=True)
-            else:
-                pass
-        elif isinstance(error, commands.NotOwner):
+            match int(error.status):
+                case 400:  # bad request, not ALWAYS due to character limit, but it usually is
+                    await ctx.respond(f"{cfg.error} This message is over 2,000 characters!", ephemeral=True)
+                case 403:  # forbidden
+                    await ctx.respond(f"{cfg.error} Do I have enough permissions?", ephemeral=True)
+                case _:
+                    pass
+        elif isinstance(error, commands.NotOwner):  # if self-hosting, this would be you!
             await ctx.respond(f"{cfg.error} Sorry bucko, only my creator can do that >:)", ephemeral=True)
         else:
             embed = discord.Embed(title="Uh oh, an error!", description=f"```\n{error}```", color=discord.Color.red())
@@ -75,7 +69,7 @@ class Tasks(commands.Cog):
             m = discord.AllowedMentions(users=[user])
             try:
                 await channel.send(f"Hey {user.mention}! You wanted me to remind you about {msg}", allowed_mentions=m)
-            except:
+            except (AttributeError, discord.Forbidden):
                 pass
 
 

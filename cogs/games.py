@@ -42,7 +42,10 @@ class AcSelect(discord.ui.Select):
             return await interaction.response.send_message(f"{cfg.error} Invalid user!", ephemeral=True)
         selection = self.values[0]
         activityid = keys[selection]
-        invite = await self.channel.create_activity_invite(activity=activityid, max_age=3600)
+        try:
+            invite = await self.channel.create_activity_invite(activity=activityid, max_age=3600)
+        except discord.NotFound:
+            return await interaction.response.send_message(f"{cfg.error} Can't find voice channel!", ephemeral=True)
         await interaction.response.edit_message(content=f"{invite}", view=None)
 
 
@@ -57,6 +60,7 @@ class Games(commands.Cog):
                        channel: Option(discord.VoiceChannel, description="Where do you want the invite?",
                                        required=True, default=None)):
         if not channel:
+            self.activity.reset_cooldown(ctx)
             return await ctx.respond(f"{cfg.error} You must specify a channel!", ephemeral=True)
         prem = True if ctx.guild.premium_tier != 0 else False
         view = discord.ui.View()
