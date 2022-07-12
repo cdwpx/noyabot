@@ -3,9 +3,9 @@ import traceback
 
 import discord
 from discord.ext import commands, tasks
-from tinydb import TinyDB, Query
 
 import utils.botconfig as cfg
+from utils.database import RemindBase
 
 
 class Tasks(commands.Cog):
@@ -23,7 +23,7 @@ class Tasks(commands.Cog):
     @commands.Cog.listener('on_application_command_error')
     @commands.Cog.listener('on_error')
     async def on_error(self, ctx, error):
-        error = error.original
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.CommandOnCooldown):
             num = round(error.retry_after) + int(time.time())
             await ctx.respond(f"{cfg.error} This command is on cooldown! Try again <t:{num}:R>", ephemeral=True)
@@ -58,18 +58,15 @@ class Tasks(commands.Cog):
 
     @tasks.loop(seconds=1)
     async def remind_check(self):
-        db = TinyDB('data/remind.json')
-        query = Query()
-        results = db.search(query.time < int(time.time()))
-        db.remove(query.time < int(time.time()))
+        results = RemindBase.grab_reminders(int(time.time()))
         for r in results:
-            channel = self.client.get_channel(r.get('channel'))
-            user = self.client.get_user(r.get('user'))
-            msg = "... well, you didn't say" if not r.get('message') else r.get('message')
+            channel = self.client.get_channel(r.channel)
+            user = self.client.get_user(r.user)
+            msg = "... well, you didn't say" if not r.message else r.message
             m = discord.AllowedMentions(users=[user])
             try:
                 await channel.send(f"Hey {user.mention}! You wanted me to remind you about {msg}", allowed_mentions=m)
-            except (AttributeError, discord.Forbidden):
+            except (AttributeError, discord.Forbidden, discord.HTTPException):
                 pass
 
 

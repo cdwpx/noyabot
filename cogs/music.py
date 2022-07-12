@@ -93,15 +93,53 @@ class SongSelect(discord.ui.Select):
 
 class Queue(discord.ui.View):
 
-    def __init__(self, client):
+    def __init__(self, client, queue, length):
         super().__init__()
         self.client = client
+        self.queue = queue
+        self.length = length
+        self.position = 0
+        self.max = len(queue[::10]) - 1
+
+    @discord.ui.button(label="Previous 10", style=discord.ButtonStyle.gray)
+    async def queue_prev(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.position -= 1
+        if self.position == 0:
+            button.disabled = True
+        if self.children[2].disabled:
+            self.children[2].disabled = False
+        page = 10 * self.position
+        songlist = []
+        count = 1
+        for song in self.queue[page:page + 10]:
+            songlist.append(f"**{count + page}:** `{song}`")
+            count += 1
+        embed = discord.Embed(title="Upcoming Songs", description=f"\n".join(songlist), color=cfg.embed_color)
+        embed.set_footer(text=f"{(10 * self.position - 1) + count} of {len(self.queue)} songs - {self.length}")
+        await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Go Back", style=discord.ButtonStyle.red)
     async def queue_return(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.client.lavalink.player_manager.get(interaction.guild.id)
         embed = create_embed(player.current, player.position)
         await interaction.response.edit_message(embed=embed, view=Buttons(self.client))
+
+    @discord.ui.button(label="Next 10", style=discord.ButtonStyle.gray)
+    async def queue_next(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.position += 1
+        if self.position == self.max:
+            button.disabled = True
+        if self.children[0].disabled:
+            self.children[0].disabled = False
+        page = 10 * self.position
+        songlist = []
+        count = 1
+        for song in self.queue[page:page + 10]:
+            songlist.append(f"**{count + page}:** `{song}`")
+            count += 1
+        embed = discord.Embed(title="Upcoming Songs", description=f"\n".join(songlist), color=cfg.embed_color)
+        embed.set_footer(text=f"{(10 * self.position - 1) + count} of {len(self.queue)} songs - {self.length}")
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 class Buttons(discord.ui.View):
@@ -116,10 +154,12 @@ class Buttons(discord.ui.View):
 
     @staticmethod
     def compilequeue(queue):
-        out = []
+        titles = []
+        lengths = []
         for song in queue:
-            out.append(song.title)
-        return out
+            titles.append(song.title)
+            lengths.append(int(song.duration / 1000))
+        return titles, lengths
 
     @discord.ui.button(emoji=cfg.pause, label="Play/Pause", style=discord.ButtonStyle.gray, row=1)
     async def button_pauseplay(self, button: discord.ui.Button, interaction: discord.Interaction):
@@ -180,14 +220,19 @@ class Buttons(discord.ui.View):
     @discord.ui.button(emoji=cfg.queue, label="Queue", style=discord.ButtonStyle.gray, row=2)
     async def button_queue(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
-        queue = self.compilequeue(player.queue)
+        queue, length = self.compilequeue(player.queue)
         songlist = []
         count = 1
         for song in queue[:10]:
             songlist.append(f"**{count}:** `{song}`")
             count += 1
-        embed = discord.Embed(title=f"Next 10 Songs", description=f"\n".join(songlist), color=cfg.embed_color)
-        await interaction.response.edit_message(embed=embed, view=Queue(self.client))
+        totallength = time.strftime('%H hours, %M minutes, %S seconds', time.gmtime(sum(length)))
+        embed = discord.Embed(title="Upcoming Songs", description=f"\n".join(songlist), color=cfg.embed_color)
+        embed.set_footer(text=f"10 of {len(queue)} songs - {totallength}")
+        view = Queue(self.client, queue, totallength)
+        ex = view.children[1:] if len(queue) > 10 else view.children[1:2]
+        view.disable_all_items(exclusions=ex)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
 class Music(commands.Cog):
@@ -200,7 +245,7 @@ class Music(commands.Cog):
     async def connect_nodes(self):
         await self.client.wait_until_ready()
         lavaclient = lavalink.Client(self.client.user.id)
-        lavaclient.add_node(cfg.l_host, cfg.l_port, cfg.l_password, cfg.l_region, cfg.l_name)
+        lavaclient.add_node(host=cfg.l_host, port=cfg.l_port, password=cfg.l_password, region=cfg.l_region)
         lavalink.add_event_hook(self.track_hook)
         self.client.lavalink = lavaclient
 

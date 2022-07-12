@@ -18,7 +18,6 @@ l_host = '0.0.0.0'
 l_port = 2333
 l_password = 'password'
 l_region = 'us'
-l_name = 'default'
 
 #  OTHER
 embed_color = 0xf1c40f  # color the bot uses on (most) embeds
