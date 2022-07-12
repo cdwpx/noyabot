@@ -5,10 +5,8 @@ You can join the support server [here](https://discord.gg/2Jb5M9wwsN)
 
 ### Requirements
 - Python 3.10+
-- Pycord
-- Lavalink (and lavalink.py)
-- tinydb
-- PyNaCl
+- [py-cord[voice]](https://github.com/Pycord-Development/pycord)
+- [lavalink](https://github.com/Devoxin/Lavalink.py)
 
 ### Setup
 Global settings can be located within `utils/botconfig.py`
