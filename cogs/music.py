@@ -320,7 +320,7 @@ class Music(commands.Cog):
             elif len(results['tracks']) == 1:
                 song = results['tracks'][0]
                 info = song['info']
-                await ctx.respond(confirmation(f"Adding {info['title']} to the player"))
+                await ctx.respond(embed=confirmation(f"Adding {info['title']} to the player"))
                 player.add(requester=ctx.author.id, track=song)
                 if not player.is_playing:
                     await player.play()

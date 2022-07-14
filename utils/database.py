@@ -1,4 +1,3 @@
-import os
 import sqlite3
 
 
@@ -11,6 +10,15 @@ class RemindBase:
         self.message = data[3]
 
     @classmethod
+    def create_database(cls):  # only run on bot start
+        db = sqlite3.connect('data/remind.db')
+        cur = db.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS reminders"
+                    "(time integer PRIMARY KEY, channel integer, user integer, message text)")
+        db.commit()
+        cur.close()
+
+    @classmethod
     def insert_reminder(cls, time, channel, user, msg):
         db = sqlite3.connect('data/remind.db')
         cur = db.cursor()
@@ -21,13 +29,9 @@ class RemindBase:
 
     @classmethod
     def grab_reminders(cls, current_time):
-        if not os.path.exists('data'):
-            os.makedirs('data')
         db = sqlite3.connect('data/remind.db')
         cur = db.cursor()
         cur.execute("PRAGMA busy_timeout = 30000")
-        cur.execute("CREATE TABLE IF NOT EXISTS reminders"
-                    "(time integer PRIMARY KEY, channel integer, user integer, message text)")
         cur.execute("SELECT * FROM reminders WHERE time < ?", (current_time,))
         data = cur.fetchall()
         cur.execute("DELETE FROM reminders WHERE time < ?", (current_time,))

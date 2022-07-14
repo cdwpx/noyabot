@@ -1,3 +1,4 @@
+import os
 import time
 import traceback
 
@@ -16,6 +17,10 @@ class Tasks(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(f'Starting bot as {self.client.user}... (ID: {self.client.user.id})\nCreated by Cic1e')
+        if not os.path.exists('data'):
+            print("Created the /data directory!")
+            os.makedirs('data')
+        RemindBase.create_database()
         self.presence_loop.start()
         self.remind_check.start()
         print('Ready!')

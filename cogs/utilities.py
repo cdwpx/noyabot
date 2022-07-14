@@ -52,15 +52,15 @@ class Utilities(commands.Cog):
         rolls = re.findall(r'(\d*[a-zA-Z]\d+)', amt)  # find the NdN's in a roll
         checkerror = False  # check if rolls got nerfed
         for dice in rolls:
-            splits = re.findall(r'(\d+)', dice)
+            splits = re.split(r'(\D)', dice)
             try:
                 val = 1 if not splits[0] else int(splits[0])
-                sid = int(splits[1])
+                sid = int(splits[2])
                 value = min(max(abs(val), 1), 999)  # d20 -> 1d20
                 sides = min(max(abs(sid), 1), 999999999)
                 if value < val or sides < sid:
                     checkerror = True  # numbers are nerfed because hoo boy, randomizing high numbers is LAGGY
-            except (ValueError, IndexError):
+            except (ValueError, IndexError) as e:
                 return await ctx.respond(f"{cfg.error} Dice not in correct format! Use `n`, `dn`, or `ndn`",
                                          ephemeral=True)
             numbers = [randint(1, sides) for x in range(value)]
