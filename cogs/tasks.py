@@ -20,7 +20,7 @@ class Tasks(commands.Cog):
         if not os.path.exists('data'):
             print("Created the /data directory!")
             os.makedirs('data')
-        RemindBase.create_database()
+        RemindBase.remind_create()
         self.presence_loop.start()
         self.remind_check.start()
         print('Ready!')
@@ -63,7 +63,7 @@ class Tasks(commands.Cog):
 
     @tasks.loop(seconds=1)
     async def remind_check(self):
-        results = RemindBase.grab_reminders(int(time.time()))
+        results = RemindBase.remind_grab(int(time.time()))
         for r in results:
             channel = self.client.get_channel(r.channel)
             user = self.client.get_user(r.user)

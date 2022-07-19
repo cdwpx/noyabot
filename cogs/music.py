@@ -64,29 +64,27 @@ class Player(discord.VoiceClient):
 
 
 class SongSelect(discord.ui.Select):
-    def __init__(self, client, results, author):
+    def __init__(self, client, tracks, requester):
         self.client = client
-        self.results = results['tracks'][:5]
-        self.author = author
+        self.tracks = tracks
+        self.requester = requester
         self.keys = {}
 
         options = []
-        for track in self.results:
-            info = track['info']
-            title = info['title']
-            options.append(discord.SelectOption(label=f"{title}", description=f"By {info['author']}"))
-            self.keys[f'{title}'] = track
+        for track in self.tracks:
+            options.append(discord.SelectOption(label=f"{track.title}", description=f"By {track.author}"))
+            self.keys[f'{track.title}'] = track
         super().__init__(placeholder="Pick a song!", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.author:
+        if interaction.user != self.requester:
             return await interaction.response.send_message(f"{cfg.error} Invalid user!", ephemeral=True)
         selection = self.values[0]
         song = self.keys[f"{selection}"]
         info = song['info']
         await interaction.response.edit_message(embed=confirmation(f"Adding {info['title']} to the player"), view=None)
         player = self.client.lavalink.player_manager.get(interaction.guild.id)
-        player.add(requester=self.author.id, track=song)
+        player.add(track=song, requester=self.requester.id)
         if not player.is_playing:
             await player.play()
 
@@ -246,14 +244,14 @@ class Music(commands.Cog):
         await self.client.wait_until_ready()
         lavaclient = lavalink.Client(self.client.user.id)
         lavaclient.add_node(host=cfg.l_host, port=cfg.l_port, password=cfg.l_password, region=cfg.l_region)
-        lavalink.add_event_hook(self.track_hook)
+        lavaclient.add_event_hooks(self)
         self.client.lavalink = lavaclient
 
-    async def track_hook(self, event):
-        if isinstance(event, lavalink.events.QueueEndEvent):
-            guild_id = int(event.player.guild_id)
-            guild = self.client.get_guild(guild_id)
-            await guild.voice_client.disconnect(force=True)
+    @lavalink.listener(lavalink.events.QueueEndEvent)
+    async def queue_ending(self, event: lavalink.QueueEndEvent):
+        guild_id = event.player.guild_id
+        guild = self.client.get_guild(guild_id)
+        await guild.voice_client.disconnect(force=True)
 
     @staticmethod
     def is_privileged(ctx, track):
@@ -298,36 +296,35 @@ class Music(commands.Cog):
         if search:
             if len(search) > 256:
                 return await ctx.respond(f"{cfg.error} Search query has a maximum of 256 characters!", ephemeral=True)
-            if not RURL.match(search):
-                search = f'ytsearch:{search}'
-            results = await player.node.get_tracks(search)
-            if not results or not results['tracks']:
-                return await ctx.respond(f"{cfg.error} Couldn't find any music!", ephemeral=True)
-            if player.is_playing:
+            elif player.is_playing:
                 if len(player.queue) >= 250:
                     return await ctx.respond(f"{cfg.error} The queue is full!", ephemeral=True)
-            if results['loadType'] == 'PLAYLIST_LOADED':
-                tracks = results['tracks']
-                total = len(player.queue)
-                count = 0
-                for track in tracks:
-                    if total + count < 250:
-                        player.add(requester=ctx.author.id, track=track)
-                        count += 1
-                await ctx.respond(embed=confirmation(f"Added {count} songs to the player"))
-                if not player.is_playing:
-                    await player.play()
-            elif len(results['tracks']) == 1:
-                song = results['tracks'][0]
-                info = song['info']
-                await ctx.respond(embed=confirmation(f"Adding {info['title']} to the player"))
-                player.add(requester=ctx.author.id, track=song)
-                if not player.is_playing:
-                    await player.play()
-            else:
-                view = discord.ui.View()
-                view.add_item(SongSelect(self.client, results, ctx.author))
-                await ctx.respond(view=view)
+            search = f'ytsearch:{search}' if not RURL.match(search) else search
+            results = await player.node.get_tracks(search)
+            tracks = results.tracks
+            match results.load_type:
+                case lavalink.LoadType.PLAYLIST:
+                    total = len(player.queue)
+                    count = 0
+                    for track in tracks:
+                        if total + count < 250:
+                            player.add(track=track, requester=ctx.author.id)
+                            count += 1
+                    await ctx.respond(embed=confirmation(f"Added {count} songs to the player"))
+                    if not player.is_playing:
+                        await player.play()
+                case lavalink.LoadType.TRACK:
+                    song = tracks[0]
+                    await ctx.respond(embed=confirmation(f"Adding {song.title} to the player"))
+                    player.add(track=song, requester=ctx.author.id)
+                    if not player.is_playing:
+                        await player.play()
+                case lavalink.LoadType.SEARCH:
+                    view = discord.ui.View()
+                    view.add_item(SongSelect(self.client, tracks[:5], ctx.author))
+                    await ctx.respond(view=view)
+                case _:
+                    return await ctx.respond(f"{cfg.error} Couldn't find any music!", ephemeral=True)
         else:
             if not player.is_playing:
                 return await ctx.respond(f"{cfg.error} No music playing!", ephemeral=True)

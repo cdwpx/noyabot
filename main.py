@@ -2,7 +2,7 @@ import discord
 
 import utils.botconfig as cfg
 
-initial_extensions = ['games', 'music', 'stats', 'tasks', 'utilities']
+initial_extensions = ['apps', 'games', 'music', 'tasks', 'utilities']
 intents = discord.Intents.all()
 client = discord.Bot(description='A bot that does things.', allowed_mentions=discord.AllowedMentions(
                          users=False, everyone=False, roles=False, replied_user=True), intents=intents)

@@ -1,2 +1,2 @@
 py-cord[voice]
-lavalink
+git+https://github.com/devoxin/lavalink.py@dev
