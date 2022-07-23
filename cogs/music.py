@@ -12,13 +12,14 @@ import utils.botconfig as cfg
 RURL = re.compile(r'https?://(?:www\.)?.+')
 
 
-def create_embed(track, position):
+def create_embed(guild, track, position):
     pos = time.strftime('%H:%M:%S', time.gmtime(int(position / 1000)))
     dur = time.strftime('%H:%M:%S', time.gmtime(int(track.duration / 1000)))
+    requester = guild.get_member(track.requester).display_name
     embed = discord.Embed(title=f"{track.title}", description=f"*{track.author}*", color=cfg.embed_color)
     embed.add_field(name="__Position__", value=f"{pos}/{dur}", inline=True)
     embed.add_field(name="__Video URL__", value=f"[Click here!]({track.uri})", inline=False)
-    embed.set_footer(text=f"Requested by {track.requester}")
+    embed.set_footer(text=f"Requested by {requester}")
     return embed
 
 
@@ -85,6 +86,7 @@ class SongSelect(discord.ui.Select):
         await interaction.response.edit_message(embed=confirmation(f"Adding {info['title']} to the player"), view=None)
         player = self.client.lavalink.player_manager.get(interaction.guild.id)
         player.add(track=song, requester=self.requester.id)
+        self.view.stop()
         if not player.is_playing:
             await player.play()
 
@@ -99,13 +101,7 @@ class Queue(discord.ui.View):
         self.position = 0
         self.max = len(queue[::10]) - 1
 
-    @discord.ui.button(label="Previous 10", style=discord.ButtonStyle.gray)
-    async def queue_prev(self, button: discord.ui.Button, interaction: discord.Interaction):
-        self.position -= 1
-        if self.position == 0:
-            button.disabled = True
-        if self.children[2].disabled:
-            self.children[2].disabled = False
+    def build_queue(self):
         page = 10 * self.position
         songlist = []
         count = 1
@@ -114,13 +110,30 @@ class Queue(discord.ui.View):
             count += 1
         embed = discord.Embed(title="Upcoming Songs", description=f"\n".join(songlist), color=cfg.embed_color)
         embed.set_footer(text=f"{(10 * self.position - 1) + count} of {len(self.queue)} songs - {self.length}")
+        return embed
+
+    @discord.ui.button(label="Previous 10", style=discord.ButtonStyle.gray)
+    async def queue_prev(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.position -= 1
+        if self.position == 0:
+            button.disabled = True
+        if self.children[2].disabled:
+            self.children[2].disabled = False
+        embed = self.build_queue()
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Go Back", style=discord.ButtonStyle.red)
     async def queue_return(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.client.lavalink.player_manager.get(interaction.guild.id)
-        embed = create_embed(player.current, player.position)
-        await interaction.response.edit_message(embed=embed, view=Buttons(self.client))
+        try:
+            embed = create_embed(guild=interaction.guild, track=player.current, position=player.position)
+        except AttributeError:
+            return
+        bview = Buttons(self.client)
+        if not Music.is_privileged(interaction.user, player.current):
+            bview.disable_all_items()
+            bview.children[5].disabled = False
+        await interaction.response.edit_message(embed=embed, view=bview)
 
     @discord.ui.button(label="Next 10", style=discord.ButtonStyle.gray)
     async def queue_next(self, button: discord.ui.Button, interaction: discord.Interaction):
@@ -129,14 +142,7 @@ class Queue(discord.ui.View):
             button.disabled = True
         if self.children[0].disabled:
             self.children[0].disabled = False
-        page = 10 * self.position
-        songlist = []
-        count = 1
-        for song in self.queue[page:page + 10]:
-            songlist.append(f"**{count + page}:** `{song}`")
-            count += 1
-        embed = discord.Embed(title="Upcoming Songs", description=f"\n".join(songlist), color=cfg.embed_color)
-        embed.set_footer(text=f"{(10 * self.position - 1) + count} of {len(self.queue)} songs - {self.length}")
+        embed = self.build_queue()
         await interaction.response.edit_message(embed=embed, view=self)
 
 
@@ -162,7 +168,7 @@ class Buttons(discord.ui.View):
     @discord.ui.button(emoji=cfg.pause, label="Play/Pause", style=discord.ButtonStyle.gray, row=1)
     async def button_pauseplay(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
-        embed = create_embed(player.current, player.position)
+        embed = create_embed(guild=interaction.guild, track=player.current, position=player.position)
         if not player.paused:
             await player.set_pause(pause=True)
             await interaction.response.edit_message(embed=embed, view=self)
@@ -175,7 +181,7 @@ class Buttons(discord.ui.View):
     @discord.ui.button(emoji=cfg.skip, label="Skip", style=discord.ButtonStyle.gray, row=1)
     async def button_forward(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
-        embed = create_embed(player.current, player.position)
+        embed = create_embed(guild=interaction.guild, track=player.current, position=player.position)
         await player.skip()
         await interaction.response.edit_message(embed=embed, view=self)
         await interaction.channel.send(f"{interaction.user.display_name} skipped the song")
@@ -194,7 +200,7 @@ class Buttons(discord.ui.View):
     @discord.ui.button(emoji=cfg.shuffle, label="Shuffle", style=discord.ButtonStyle.gray, row=2)
     async def button_shuffle(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
-        embed = create_embed(player.current, player.position)
+        embed = create_embed(guild=interaction.guild, track=player.current, position=player.position)
         await interaction.response.edit_message(embed=embed, view=self)
         if not player.shuffle:
             player.set_shuffle(shuffle=True)
@@ -206,7 +212,7 @@ class Buttons(discord.ui.View):
     @discord.ui.button(emoji=cfg.repeat, label="Repeat", style=discord.ButtonStyle.gray, row=2)
     async def button_loop(self, button: discord.ui.Button, interaction: discord.Interaction):
         player = self.controller(interaction)
-        embed = create_embed(player.current, player.position)
+        embed = create_embed(guild=interaction.guild, track=player.current, position=player.position)
         await interaction.response.edit_message(embed=embed, view=self)
         if not player.repeat:
             player.set_repeat(repeat=True)
@@ -254,8 +260,8 @@ class Music(commands.Cog):
         await guild.voice_client.disconnect(force=True)
 
     @staticmethod
-    def is_privileged(ctx, track):
-        return track.requester == ctx.author.id or ctx.author.guild_permissions.kick_members
+    def is_privileged(user, track):
+        return track.requester == user.id or user.guild_permissions.kick_members
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState,
@@ -320,17 +326,24 @@ class Music(commands.Cog):
                     if not player.is_playing:
                         await player.play()
                 case lavalink.LoadType.SEARCH:
-                    view = discord.ui.View()
+                    view = discord.ui.View(timeout=30)
                     view.add_item(SongSelect(self.client, tracks[:5], ctx.author))
-                    await ctx.respond(view=view)
+                    message = await ctx.respond(view=view)
+                    test_for_response = await view.wait()
+                    if test_for_response:  # returns True if a song wasn't picked
+                        embed = discord.Embed(
+                            title=f"{cfg.error} No song selected! Cancelling...", color=discord.Color.red())
+                        await message.edit_original_message(embed=embed, view=None)
                 case _:
                     return await ctx.respond(f"{cfg.error} Couldn't find any music!", ephemeral=True)
         else:
             if not player.is_playing:
                 return await ctx.respond(f"{cfg.error} No music playing!", ephemeral=True)
-            check = self.is_privileged(ctx, player.current)
-            bview = Buttons(self.client) if check else None
-            embed = create_embed(player.current, player.position)
+            bview = Buttons(self.client)
+            if not self.is_privileged(ctx.author, player.current):
+                bview.disable_all_items()
+                bview.children[5].disabled = False
+            embed = create_embed(guild=ctx.guild, track=player.current, position=player.position)
             await ctx.respond(embed=embed, view=bview, ephemeral=True)
 
 
