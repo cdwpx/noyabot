@@ -9,4 +9,6 @@ You can join the support server [here](https://discord.gg/2Jb5M9wwsN)
 - [lavalink](https://github.com/Devoxin/Lavalink.py)
 
 ### Setup
-Global settings can be located within `utils/botconfig.py`
+1. Make sure you have the above, install requirements using `pip install -r requirements.txt`
+2. Global settings can be located within `utils/botconfig.py`
+3. Run with `python3 main.py`
